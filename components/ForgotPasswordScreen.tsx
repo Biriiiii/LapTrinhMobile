@@ -1,7 +1,7 @@
-// File: components/ForgotPasswordScreen.tsx
 import { Feather } from '@expo/vector-icons';
-import { useState } from 'react';
+import React, { useState } from 'react';
 import {
+    ActivityIndicator,
     Alert,
     KeyboardAvoidingView,
     Platform,
@@ -14,12 +14,13 @@ import {
 
 interface ForgotPasswordScreenProps {
     onBackToLogin: () => void;
+    onEmailSubmitted: (email: string) => void;
 }
 
-export default function ForgotPasswordScreen({ onBackToLogin }: ForgotPasswordScreenProps) {
+export default function ForgotPasswordScreen({ onBackToLogin, onEmailSubmitted }: ForgotPasswordScreenProps) {
     const [email, setEmail] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [isSuccess, setIsSuccess] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false); // Đã thêm biến này
 
     const handleResetPassword = () => {
         if (!email) {
@@ -39,20 +40,12 @@ export default function ForgotPasswordScreen({ onBackToLogin }: ForgotPasswordSc
         // Simulate API call
         setTimeout(() => {
             setIsLoading(false);
-            setIsSuccess(true);
-            Alert.alert(
-                'Thành công',
-                'Đã gửi email khôi phục mật khẩu! Vui lòng kiểm tra hộp thư của bạn.',
-                [
-                    {
-                        text: 'OK',
-                        onPress: () => {
-                            setEmail('');
-                            setIsSuccess(false);
-                        }
-                    }
-                ]
-            );
+            setIsSuccess(true); // Cập nhật trạng thái thành công
+
+            // Chuyển sang màn hình OTP sau 500ms để người dùng kịp thấy thông báo thành công (nếu cần)
+            setTimeout(() => {
+                onEmailSubmitted(email);
+            }, 500);
         }, 1500);
     };
 
@@ -102,7 +95,7 @@ export default function ForgotPasswordScreen({ onBackToLogin }: ForgotPasswordSc
                 {/* Success Message */}
                 {isSuccess && (
                     <View style={styles.successMessage}>
-                        <Feather name="check-circle" size={20} color="#ffffff" />
+                        <Feather name="check-circle" size={20} color="#4BB543" />
                         <Text style={styles.successText}>
                             Email đã được gửi thành công!
                         </Text>
@@ -117,7 +110,7 @@ export default function ForgotPasswordScreen({ onBackToLogin }: ForgotPasswordSc
                 >
                     {isLoading ? (
                         <View style={styles.loadingContainer}>
-                            <Feather name="loader" size={20} color="#000000" />
+                            <ActivityIndicator size="small" color="#000000" />
                             <Text style={styles.buttonText}>Đang xử lý...</Text>
                         </View>
                     ) : (
@@ -158,7 +151,7 @@ const styles = StyleSheet.create({
     },
     backButton: {
         position: 'absolute',
-        top: 20,
+        top: 40, // Tăng lên một chút để tránh tai thỏ
         left: 20,
         padding: 8,
         zIndex: 1,
@@ -222,7 +215,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         marginBottom: 24,
         borderWidth: 1,
-        borderColor: '#ffffff',
+        borderColor: '#4BB543',
     },
     successText: {
         marginLeft: 8,
