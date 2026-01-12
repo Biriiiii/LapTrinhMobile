@@ -1,108 +1,78 @@
-// File: components/LoginForm.tsx
-import { useState } from 'react';
-import {
-  Alert,
-  KeyboardAvoidingView,
-  Platform,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View
-} from 'react-native';
-// Sử dụng bộ icon có sẵn của Expo
 import { Feather } from '@expo/vector-icons';
+import { useState } from 'react';
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { useAuth } from '../context/AuthContext';
+import apiClient from '../services/apiClient';
 
-interface LoginFormProps {
-  onForgotPassword?: () => void;
-}
-
-export default function LoginForm({ onForgotPassword }: LoginFormProps) {
+export default function LoginForm({ onForgotPassword }: { onForgotPassword?: () => void }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const { signIn } = useAuth();
 
-  const handleLogin = () => {
-    // Logic đăng nhập giả lập
-    console.log('Login:', { email, password, rememberMe });
+  const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Thông báo', 'Vui lòng điền đầy đủ thông tin!');
+      Alert.alert('Lỗi', 'Vui lòng điền đầy đủ thông tin!');
       return;
     }
-    Alert.alert('Thành công', `Đăng nhập với: ${email}`);
+
+    setIsLoading(true);
+    try {
+      // Gọi API đăng nhập (Thay endpoint cho đúng với Backend của bạn)
+      const response = await apiClient.post('/auth/login', { username: email, password });
+
+      if (response.data?.token) {
+        await signIn(response.data.token);
+      }
+    } catch (error: any) {
+      Alert.alert('Lỗi', error.response?.data?.message || 'Đăng nhập thất bại');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      style={styles.container}
-    >
+    <View style={styles.container}>
       <Text style={styles.headerTitle}>Đăng Nhập</Text>
 
-      {/* Email Input */}
       <View style={styles.inputGroup}>
-        <Text style={styles.label}>Email</Text>
+        <Text style={styles.label}>Email / Username</Text>
         <View style={styles.inputContainer}>
-          <Feather name="mail" size={20} color="#666666" style={styles.inputIcon} />
+          <Feather name="mail" size={20} color="#666" style={styles.inputIcon} />
           <TextInput
             style={styles.input}
-            placeholder="your@email.com"
-            placeholderTextColor="#666666"
             value={email}
             onChangeText={setEmail}
-            keyboardType="email-address"
+            placeholder="Nhập email..."
+            placeholderTextColor="#666"
             autoCapitalize="none"
           />
         </View>
       </View>
 
-      {/* Password Input */}
       <View style={styles.inputGroup}>
         <Text style={styles.label}>Mật khẩu</Text>
         <View style={styles.inputContainer}>
-          <Feather name="lock" size={20} color="#666666" style={styles.inputIcon} />
+          <Feather name="lock" size={20} color="#666" style={styles.inputIcon} />
           <TextInput
             style={styles.input}
-            placeholder="••••••••"
-            placeholderTextColor="#666666"
             value={password}
             onChangeText={setPassword}
-            secureTextEntry={!showPassword}
+            secureTextEntry
+            placeholder="••••••••"
+            placeholderTextColor="#666"
           />
-          <TouchableOpacity
-            onPress={() => setShowPassword(!showPassword)}
-            style={styles.eyeIcon}
-          >
-            <Feather name={showPassword ? "eye" : "eye-off"} size={20} color="#666666" />
-          </TouchableOpacity>
         </View>
       </View>
 
-      {/* Remember Me & Forgot Password */}
-      <View style={styles.optionsRow}>
-        <TouchableOpacity
-          style={styles.rememberMeContainer}
-          onPress={() => setRememberMe(!rememberMe)}
-        >
-          {/* Custom Checkbox */}
-          <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
-            {rememberMe && <Feather name="check" size={12} color="white" />}
-          </View>
-          <Text style={styles.rememberText}>Nhớ đăng nhập</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={onForgotPassword}>
-          <Text style={styles.forgotPassword}>Quên mật khẩu?</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Submit Button */}
-      <TouchableOpacity style={styles.button} onPress={handleLogin}>
-        <Text style={styles.buttonText}>Đăng nhập</Text>
+      <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={isLoading}>
+        {isLoading ? <ActivityIndicator color="#000" /> : <Text style={styles.buttonText}>Đăng nhập</Text>}
       </TouchableOpacity>
 
-    </KeyboardAvoidingView>
+      <TouchableOpacity onPress={onForgotPassword} style={{ marginTop: 15 }}>
+        <Text style={styles.forgotPassword}>Quên mật khẩu?</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 

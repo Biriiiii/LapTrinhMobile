@@ -11,11 +11,10 @@ import {
 } from 'react-native';
 
 // Import các màn hình con
-import ForgotPasswordScreen from './ForgotPasswordScreen';
-import OtpScreen from './OtpScreen';
-// Giả định bạn đã có 2 file này, nếu chưa có hãy comment lại hoặc tạo file rỗng
-import LoginForm from './LoginForm';
-import RegisterForm from './RegisterForm';
+import ForgotPasswordScreen from '../components/ForgotPasswordScreen'; // Nếu bạn để cùng folder app
+import LoginForm from '../components/LoginForm';
+import OtpScreen from '../components/OtpScreen';
+import RegisterForm from '../components/RegisterForm';
 
 type ScreenType = 'login' | 'register' | 'forgot' | 'otp';
 
