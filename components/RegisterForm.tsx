@@ -1,36 +1,97 @@
-// File: components/RegisterForm.tsx
+import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import {
+    ActivityIndicator,
+    Alert,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import apiClient from '../services/apiClient'; // Đảm bảo đường dẫn này đúng với dự án của bạn
 
 export default function RegisterForm() {
+    const router = useRouter();
+    const [loading, setLoading] = useState(false);
+
+    // 1. Cập nhật State khớp với các trường API yêu cầu
     const [formData, setFormData] = useState({
-        name: '',
+        username: '',
+        fullName: '',
         email: '',
         password: '',
         confirmPassword: '',
     });
 
-    const handleRegister = () => {
-        if (formData.password !== formData.confirmPassword) {
-            Alert.alert('Lỗi', 'Mật khẩu không khớp!');
+    const handleRegister = async () => {
+        const { username, fullName, email, password, confirmPassword } = formData;
+
+        // 2. Kiểm tra dữ liệu đầu vào (Validation)
+        if (!username || !fullName || !email || !password) {
+            Alert.alert('Lỗi', 'Vui lòng điền đầy đủ thông tin!');
             return;
         }
-        Alert.alert('Thành công', `Đăng ký cho: ${formData.name}`);
+
+        if (password !== confirmPassword) {
+            Alert.alert('Lỗi', 'Mật khẩu xác nhận không khớp!');
+            return;
+        }
+
+        try {
+            setLoading(true);
+
+            // 3. Cấu trúc JSON gửi lên đúng như bạn yêu cầu
+            const payload = {
+                username: username,
+                email: email,
+                password: password,
+                fullName: fullName
+            };
+
+            const response = await apiClient.post('/auth/register', payload);
+
+            if (response.status === 200 || response.status === 201) {
+                Alert.alert('Thành công', 'Tài khoản đã được tạo! Vui lòng đăng nhập.', [
+                    { text: 'OK', onPress: () => router.push('/auth') } // Chuyển sang trang đăng nhập
+                ]);
+            }
+        } catch (error: any) {
+            console.error("Lỗi Đăng ký:", error.response?.data);
+            const errorMsg = error.response?.data?.message || 'Đăng ký thất bại. Tên đăng nhập hoặc Email có thể đã tồn tại.';
+            Alert.alert('Lỗi', errorMsg);
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
-        <ScrollView contentContainerStyle={styles.container}>
-            <Text style={styles.title}>Đăng Ký Tài Khoản</Text>
+        <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
+            <Text style={styles.title}>Tạo Tài Khoản</Text>
 
-            {/* Tên */}
+            {/* Họ và tên */}
             <View style={styles.inputContainer}>
-                <Text style={styles.label}>Họ và tên</Text>
+                <Text style={styles.label}>Họ và tên (Full Name)</Text>
                 <TextInput
                     style={styles.input}
                     placeholder="Nguyễn Văn A"
                     placeholderTextColor="#666666"
-                    value={formData.name}
-                    onChangeText={(text) => setFormData({ ...formData, name: text })}
+                    value={formData.fullName}
+                    onChangeText={(text) => setFormData({ ...formData, fullName: text })}
+                />
+            </View>
+
+            {/* Tên đăng nhập */}
+            <View style={styles.inputContainer}>
+                <Text style={styles.label}>Tên đăng nhập (Username)</Text>
+                <TextInput
+                    style={styles.input}
+                    placeholder="testuser"
+                    placeholderTextColor="#666666"
+                    autoCapitalize="none"
+                    value={formData.username}
+                    onChangeText={(text) => setFormData({ ...formData, username: text })}
                 />
             </View>
 
@@ -39,7 +100,7 @@ export default function RegisterForm() {
                 <Text style={styles.label}>Email</Text>
                 <TextInput
                     style={styles.input}
-                    placeholder="email@example.com"
+                    placeholder="testuser@example.com"
                     placeholderTextColor="#666666"
                     value={formData.email}
                     onChangeText={(text) => setFormData({ ...formData, email: text })}
@@ -77,8 +138,22 @@ export default function RegisterForm() {
             </View>
 
             {/* Nút bấm */}
-            <TouchableOpacity style={styles.button} onPress={handleRegister}>
-                <Text style={styles.buttonText}>Đăng Ký</Text>
+            <TouchableOpacity
+                style={[styles.button, loading && { opacity: 0.7 }]}
+                onPress={handleRegister}
+                disabled={loading}
+            >
+                {loading ? (
+                    <ActivityIndicator color="#000" />
+                ) : (
+                    <Text style={styles.buttonText}>ĐĂNG KÝ NGAY</Text>
+                )}
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => router.push('/auth')} style={{ marginTop: 20 }}>
+                <Text style={{ color: '#999', textAlign: 'center' }}>
+                    Đã có tài khoản? <Text style={{ color: '#fff', fontWeight: 'bold' }}>Đăng nhập</Text>
+                </Text>
             </TouchableOpacity>
         </ScrollView>
     );
@@ -87,26 +162,26 @@ export default function RegisterForm() {
 const styles = StyleSheet.create({
     container: {
         padding: 24,
-        backgroundColor: 'transparent',
-        flex: 1,
-        justifyContent: 'center',
+        paddingTop: 60,
+        backgroundColor: '#000',
+        flexGrow: 1,
     },
     title: {
         fontSize: 32,
         fontWeight: '900',
         color: '#ffffff',
         marginBottom: 36,
-        textAlign: 'center',
+        textAlign: 'left',
         letterSpacing: 1,
     },
     inputContainer: {
-        marginBottom: 24,
+        marginBottom: 20,
     },
     label: {
-        fontSize: 13,
+        fontSize: 12,
         color: '#999999',
-        marginBottom: 10,
-        fontWeight: '600',
+        marginBottom: 8,
+        fontWeight: '700',
         textTransform: 'uppercase',
         letterSpacing: 1,
     },
@@ -117,19 +192,19 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         fontSize: 16,
         color: '#ffffff',
-        backgroundColor: '#000000',
+        backgroundColor: '#111',
         height: 56,
     },
     button: {
         backgroundColor: '#ffffff',
-        padding: 16,
+        padding: 18,
         borderRadius: 12,
         alignItems: 'center',
-        marginTop: 12,
+        marginTop: 10,
         shadowColor: '#ffffff',
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: 0.3,
-        shadowRadius: 12,
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.2,
+        shadowRadius: 10,
         elevation: 8,
     },
     buttonText: {

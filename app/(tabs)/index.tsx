@@ -1,5 +1,5 @@
-import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router'; // 1. BẮT BUỘC: Phải có import này
+import { Feather, MaterialCommunityIcons, MaterialIcons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
@@ -13,26 +13,29 @@ import {
 } from 'react-native';
 import apiClient from '../../services/apiClient';
 
-// --- 1. ĐỊNH NGHĨA INTERFACES ---
 interface Category { id: number; name: string; }
 interface Artist { id: number; name: string; image?: string; }
 interface Album {
   id: number;
-  name?: string;
-  title?: string;
-  image?: string;
+  title: string;
+  releaseYear: number;
   price: number;
+  coverUrl: string;
+  description?: string;
+  categoryName?: string;
 }
-interface UserProfile { username: string; email: string; }
+interface UserProfile { username: string; email: string; walletBalance: number; }
 
 export default function SpotifyHomeScreen() {
-  // 2. BẮT BUỘC: Khai báo router bên trong component
   const router = useRouter();
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+
+  // --- 1. STATE LƯU TRỮ ID CÁC ALBUM ĐÃ MUA ---
+  const [ownedAlbumIds, setOwnedAlbumIds] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,17 +45,28 @@ export default function SpotifyHomeScreen() {
   const fetchHomeData = async () => {
     try {
       setLoading(true);
-      const [resCat, resArt, resAlb, resProf] = await Promise.all([
+
+      // Gọi đồng thời các API cần thiết
+      const [resCat, resArt, resAlb, resProf, resMyAlbums] = await Promise.all([
         apiClient.get('/public/categories'),
         apiClient.get('/public/artists/popular'),
         apiClient.get('/public/albums'),
-        apiClient.get('/customer/profile').catch(() => null)
+        apiClient.get('/customer/profile').catch(() => null),
+        // Lấy danh sách album đã sở hữu
+        apiClient.get('/customer/profile/my-albums').catch(() => ({ data: [] }))
       ]);
 
       if (resCat) setCategories(resCat.data);
       if (resArt) setArtists(resArt.data);
       if (resAlb) setAlbums(resAlb.data);
       if (resProf) setProfile(resProf.data);
+
+      // --- 2. TRÍCH XUẤT DANH SÁCH ID ĐÃ SỞ HỮU ---
+      if (resMyAlbums) {
+        const ids = resMyAlbums.data.map((item: any) => item.id);
+        setOwnedAlbumIds(ids);
+      }
+
     } catch (error) {
       console.error("Lỗi kết nối API:", error);
     } finally {
@@ -74,11 +88,13 @@ export default function SpotifyHomeScreen() {
 
         {/* --- HEADER --- */}
         <View style={styles.header}>
-          <View style={styles.profileCircle}>
-            <Text style={styles.profileChar}>
-              {profile?.username ? profile.username.charAt(0).toUpperCase() : 'G'}
-            </Text>
-          </View>
+          <TouchableOpacity onPress={() => router.push('/(tabs)/profile')}>
+            <View style={styles.profileCircle}>
+              <Text style={styles.profileChar}>
+                {profile?.username ? profile.username.charAt(0).toUpperCase() : 'G'}
+              </Text>
+            </View>
+          </TouchableOpacity>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chipContainer}>
             {['Tất cả', 'Âm nhạc', 'Albums', 'Nghệ sĩ'].map((chip, index) => (
               <TouchableOpacity key={index} style={[styles.chip, index === 0 && styles.chipActive]}>
@@ -101,31 +117,49 @@ export default function SpotifyHomeScreen() {
           ))}
         </View>
 
-        {/* --- SECTION 2: ALBUMS (DÒNG FIX LỖI TẠI ĐÂY) --- */}
+        {/* --- SECTION 2: ALBUMS NỔI BẬT --- */}
         <Text style={styles.sectionTitle}>Albums nổi bật</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollPadding}>
-          {albums.map((album) => (
-            <TouchableOpacity
-              key={album.id}
-              style={styles.albumCard}
-              activeOpacity={0.8}
-              // Sửa lỗi: Thêm 'as any' để TypeScript không bắt lỗi định dạng chuỗi
-              onPress={() => router.push(`/album/${album.id}` as any)}
-            >
-              <Image
-                source={{ uri: album.image || 'https://via.placeholder.com/150' }}
-                style={styles.albumImage}
-              />
-              <Text style={styles.albumNameText} numberOfLines={2}>
-                {album.name || album.title || "Album không tên"}
-              </Text>
-              <View style={styles.priceTag}>
-                <Text style={styles.priceText}>
-                  {album.price > 0 ? `${album.price.toLocaleString('vi-VN')}đ` : 'Miễn phí'}
+          {albums.map((album) => {
+            // --- 3. KIỂM TRA XEM ALBUM NÀY ĐÃ ĐƯỢC MUA CHƯA ---
+            const isOwned = ownedAlbumIds.includes(album.id);
+
+            return (
+              <TouchableOpacity
+                key={album.id}
+                style={styles.albumCard}
+                activeOpacity={0.8}
+                onPress={() => router.push(`/album/${album.id}` as any)}
+              >
+                <Image
+                  source={{ uri: album.coverUrl || 'https://via.placeholder.com/150' }}
+                  style={styles.albumImage}
+                />
+                <Text style={styles.albumNameText} numberOfLines={1}>
+                  {album.title}
                 </Text>
-              </View>
-            </TouchableOpacity>
-          ))}
+                <Text style={styles.releaseYearText}>
+                  Năm: {album.releaseYear || '2024'}
+                </Text>
+
+                {/* --- 4. HIỂN THỊ GIÁ HOẶC TRẠNG THÁI ĐÃ SỞ HỮU --- */}
+                {isOwned ? (
+                  <View style={[styles.priceTag, { backgroundColor: '#1DB95422' }]}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                      <MaterialIcons name="verified" size={12} color="#1DB954" />
+                      <Text style={[styles.priceText, { marginLeft: 4 }]}>ĐÃ SỞ HỮU</Text>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.priceTag}>
+                    <Text style={styles.priceText}>
+                      {album.price > 0 ? `${album.price.toLocaleString('vi-VN')}đ` : 'Miễn phí'}
+                    </Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })}
         </ScrollView>
 
         {/* --- SECTION 3: NGHỆ SĨ --- */}
@@ -136,7 +170,6 @@ export default function SpotifyHomeScreen() {
               key={artist.id}
               style={styles.artistItem}
               activeOpacity={0.8}
-              // Sửa lỗi: Điều hướng sang trang artist
               onPress={() => router.push(`/artist/${artist.id}` as any)}
             >
               <Image source={{ uri: artist.image || 'https://via.placeholder.com/100' }} style={styles.artistCircleImg} />
@@ -180,11 +213,12 @@ const styles = StyleSheet.create({
   recentImagePlaceholder: { width: 56, height: 56, backgroundColor: '#333', justifyContent: 'center', alignItems: 'center' },
   recentText: { color: '#fff', fontSize: 12, fontWeight: 'bold', marginLeft: 8, flex: 1 },
   scrollPadding: { paddingLeft: 16 },
-  albumCard: { width: 140, marginRight: 16, minHeight: 210 },
+  albumCard: { width: 140, marginRight: 16, minHeight: 230 },
   albumImage: { width: 140, height: 140, borderRadius: 8, backgroundColor: '#333' },
-  albumNameText: { color: '#ffffff', marginTop: 10, fontWeight: 'bold', fontSize: 14, minHeight: 35 },
-  priceTag: { marginTop: 6, backgroundColor: '#1DB95422', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 4 },
-  priceText: { color: '#1DB954', fontSize: 12, fontWeight: 'bold' },
+  albumNameText: { color: '#ffffff', marginTop: 10, fontWeight: 'bold', fontSize: 14 },
+  releaseYearText: { color: '#b3b3b3', fontSize: 11, marginTop: 2 },
+  priceTag: { marginTop: 6, backgroundColor: '#1DB95422', alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  priceText: { color: '#1DB954', fontSize: 11, fontWeight: 'bold' },
   artistItem: { alignItems: 'center', marginRight: 16, width: 100 },
   artistCircleImg: { width: 100, height: 100, borderRadius: 50, backgroundColor: '#333' },
   artistNameText: { color: '#fff', marginTop: 8, fontSize: 12, textAlign: 'center' },
