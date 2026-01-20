@@ -1,9 +1,9 @@
 import { Feather, MaterialCommunityIcons } from '@expo/vector-icons';
 import Slider from '@react-native-community/slider';
-import { Audio } from 'expo-av';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect } from 'react';
 import { Image, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { usePlayer } from '../context/PlayerContext';
 
 // Cần import thêm Ionicons cho nút Play chuyên nghiệp
 import { Ionicons } from '@expo/vector-icons';
@@ -11,66 +11,35 @@ import { Ionicons } from '@expo/vector-icons';
 export default function PlayerScreen() {
     const router = useRouter();
     const params = useLocalSearchParams();
+    const { playTrack, isPlaying, status, pauseTrack, resumeTrack, seek } = usePlayer();
 
-    // Lấy dữ liệu từ params (được truyền từ trang Album Detail)
+    // Lấy dữ liệu từ params
     const { songId, title, artist, coverUrl, streamUrl } = params;
 
-    const [sound, setSound] = useState<Audio.Sound | null>(null);
-    const [isPlaying, setIsPlaying] = useState(false);
-    const [position, setPosition] = useState(0);
-    const [duration, setDuration] = useState(0);
-
-    // 1. Khởi tạo và tải nhạc
     useEffect(() => {
-        loadAudio();
-        return () => {
-            if (sound) {
-                sound.unloadAsync(); // Giải phóng bộ nhớ khi thoát trang
-            }
-        };
+        console.log('Player params:', { songId, title, artist, coverUrl, streamUrl });
+
+        if (streamUrl && streamUrl !== 'undefined') {
+            const track = {
+                id: parseInt(songId as string),
+                title: title as string,
+                artist: artist as string,
+                coverUrl: coverUrl as string,
+                streamUrl: streamUrl as string
+            };
+            console.log('Playing track:', track);
+            playTrack(track);
+        } else {
+            console.error('StreamURL is null or undefined:', streamUrl);
+        }
     }, [streamUrl]);
 
-    async function loadAudio() {
-        try {
-            // Ngừng âm thanh cũ nếu có
-            if (sound) await sound.unloadAsync();
-
-            const { sound: newSound } = await Audio.Sound.createAsync(
-                { uri: streamUrl as string },
-                { shouldPlay: true },
-                onPlaybackStatusUpdate
-            );
-            setSound(newSound);
-            setIsPlaying(true);
-        } catch (error) {
-            console.error("Không thể tải nhạc:", error);
-        }
-    }
-
-    // 2. Cập nhật trạng thái bài hát (thời gian đang chạy)
-    const onPlaybackStatusUpdate = (status: any) => {
-        if (status.isLoaded) {
-            setPosition(status.positionMillis);
-            setDuration(status.durationMillis || 0);
-            if (status.didJustFinish) setIsPlaying(false);
-        }
-    };
-
-    // 3. Các hàm điều khiển
-    const handlePlayPause = async () => {
-        if (!sound) return;
-        if (isPlaying) {
-            await sound.pauseAsync();
-        } else {
-            await sound.playAsync();
-        }
-        setIsPlaying(!isPlaying);
-    };
+    // Lấy thông tin từ player context
+    const position = status?.positionMillis || 0;
+    const duration = status?.durationMillis || 0;
 
     const handleSeek = async (value: number) => {
-        if (sound) {
-            await sound.setPositionAsync(value);
-        }
+        seek(value);
     };
 
     // Định dạng thời gian mm:ss
@@ -139,7 +108,7 @@ export default function PlayerScreen() {
                 <TouchableOpacity>
                     <Feather name="skip-back" size={35} color="#fff" />
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.playBtn} onPress={handlePlayPause}>
+                <TouchableOpacity style={styles.playBtn} onPress={isPlaying ? pauseTrack : resumeTrack}>
                     <Ionicons name={isPlaying ? "pause" : "play"} size={35} color="#000" />
                 </TouchableOpacity>
                 <TouchableOpacity>

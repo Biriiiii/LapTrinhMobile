@@ -1,6 +1,7 @@
 import { Stack, router } from 'expo-router';
 import { useEffect } from 'react';
 import { AuthProvider, useAuth } from '../context/AuthContext';
+import { PlayerProvider } from '../context/PlayerContext';
 
 function RootLayoutNav() {
   const { token, isLoading } = useAuth();
@@ -23,7 +24,9 @@ function RootLayoutNav() {
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RootLayoutNav />
+      <PlayerProvider>
+        <RootLayoutNav />
+      </PlayerProvider>
     </AuthProvider>
   );
 }

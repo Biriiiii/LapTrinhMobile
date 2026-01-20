@@ -1,5 +1,5 @@
 import { Audio, AVPlaybackStatus } from 'expo-av';
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState } from 'react';
 
 // --- 1. ĐỊNH NGHĨA KIỂU DỮ LIỆU ---
 interface Track {
@@ -29,10 +29,22 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     const [isPlaying, setIsPlaying] = useState(false);
     const [status, setStatus] = useState<any>(null);
 
+    // Khởi tạo Audio mode
+    useEffect(() => {
+        Audio.setAudioModeAsync({
+            allowsRecordingIOS: false,
+            staysActiveInBackground: true,
+            playsInSilentModeIOS: true,
+            shouldDuckAndroid: true,
+            playThroughEarpieceAndroid: false,
+        });
+    }, []);
+
     // Cập nhật trạng thái nhạc (position, duration)
     const onPlaybackStatusUpdate = (newStatus: AVPlaybackStatus) => {
         if (newStatus.isLoaded) {
             setStatus(newStatus);
+            setIsPlaying(newStatus.isPlaying);
             if (newStatus.didJustFinish) {
                 setIsPlaying(false);
             }
@@ -41,9 +53,19 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
 
     const playTrack = async (track: Track) => {
         try {
+            console.log('Attempting to play track:', track);
+
+            if (!track.streamUrl) {
+                console.error('StreamURL is missing!');
+                return;
+            }
+
             if (sound) {
                 await sound.unloadAsync();
             }
+
+            console.log('Creating audio with URL:', track.streamUrl);
+
             const { sound: newSound } = await Audio.Sound.createAsync(
                 { uri: track.streamUrl },
                 { shouldPlay: true },
@@ -52,8 +74,11 @@ export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
             setSound(newSound);
             setCurrentTrack(track);
             setIsPlaying(true);
-        } catch (e) {
-            console.log("Lỗi phát nhạc:", e);
+
+            console.log('Audio loaded successfully');
+        } catch (error) {
+            console.error("Lỗi phát nhạc:", error);
+            console.error("URL gây lỗi:", track.streamUrl);
         }
     };
 

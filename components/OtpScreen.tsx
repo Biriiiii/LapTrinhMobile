@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
 interface OtpScreenProps {
     onVerifyOtp: (otp: string) => void;
@@ -9,6 +9,22 @@ interface OtpScreenProps {
 
 const OtpScreen = ({ onVerifyOtp, onBack, email }: OtpScreenProps) => {
     const [otp, setOtp] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleVerifyOtp = async () => {
+        if (!otp || otp.length !== 6) {
+            Alert.alert('Lỗi', 'Vui lòng nhập mã OTP 6 số!');
+            return;
+        }
+
+        setIsLoading(true);
+
+        // Simulate OTP verification - có thể thêm API call ở đây
+        setTimeout(() => {
+            setIsLoading(false);
+            onVerifyOtp(otp);
+        }, 1000);
+    };
 
     return (
         <View style={styles.container}>
@@ -26,8 +42,16 @@ const OtpScreen = ({ onVerifyOtp, onBack, email }: OtpScreenProps) => {
                 maxLength={6}
                 autoFocus={true}
             />
-            <TouchableOpacity style={styles.button} onPress={() => onVerifyOtp(otp)}>
-                <Text style={styles.buttonText}>Xác nhận</Text>
+            <TouchableOpacity
+                style={[styles.button, isLoading && styles.buttonDisabled]}
+                onPress={handleVerifyOtp}
+                disabled={isLoading}
+            >
+                {isLoading ? (
+                    <ActivityIndicator color="#000" />
+                ) : (
+                    <Text style={styles.buttonText}>Xác nhận</Text>
+                )}
             </TouchableOpacity>
             <TouchableOpacity style={styles.backButton} onPress={onBack}>
                 <Text style={styles.backButtonText}>Quay lại</Text>
@@ -80,6 +104,9 @@ const styles = StyleSheet.create({
         marginBottom: 16,
         width: '100%',
         alignItems: 'center',
+    },
+    buttonDisabled: {
+        backgroundColor: '#666',
     },
     buttonText: {
         color: '#000',

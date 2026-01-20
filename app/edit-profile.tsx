@@ -105,16 +105,6 @@ export default function EditProfileScreen() {
             <ScrollView showsVerticalScrollIndicator={false} style={styles.form}>
 
                 {/* TRƯỜNG FULL NAME */}
-                <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Họ và tên (Full Name)</Text>
-                    <TextInput
-                        style={styles.input}
-                        value={fullName}
-                        onChangeText={setFullName}
-                        placeholder="VD: Nguyễn Văn A"
-                        placeholderTextColor="#555"
-                    />
-                </View>
 
                 {/* TRƯỜNG USERNAME */}
                 <View style={styles.inputGroup}>

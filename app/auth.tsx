@@ -15,12 +15,14 @@ import ForgotPasswordScreen from '../components/ForgotPasswordScreen'; // Nếu 
 import LoginForm from '../components/LoginForm';
 import OtpScreen from '../components/OtpScreen';
 import RegisterForm from '../components/RegisterForm';
+import ResetPasswordScreen from '../components/ResetPasswordScreen';
 
-type ScreenType = 'login' | 'register' | 'forgot' | 'otp';
+type ScreenType = 'login' | 'register' | 'forgot' | 'otp' | 'reset';
 
 export default function AuthScreen() {
     const [currentScreen, setCurrentScreen] = useState<ScreenType>('login');
     const [resetEmail, setResetEmail] = useState<string>('');
+    const [verifiedOtp, setVerifiedOtp] = useState<string>('');
 
     // Nếu đang ở màn hình Quên mật khẩu
     if (currentScreen === 'forgot') {
@@ -41,12 +43,27 @@ export default function AuthScreen() {
             <OtpScreen
                 onVerifyOtp={(otp: string) => {
                     console.log('Verifying OTP:', otp);
-                    // TODO: handle OTP verification API here
-                    alert('OTP Verified! Returning to login.');
-                    setCurrentScreen('login');
+                    setVerifiedOtp(otp);
+                    setCurrentScreen('reset');
                 }}
                 onBack={() => setCurrentScreen('forgot')}
                 email={resetEmail}
+            />
+        );
+    }
+
+    // Nếu đang ở màn hình đặt lại mật khẩu
+    if (currentScreen === 'reset') {
+        return (
+            <ResetPasswordScreen
+                email={resetEmail}
+                otpCode={verifiedOtp}
+                onPasswordReset={() => {
+                    setCurrentScreen('login');
+                    setResetEmail('');
+                    setVerifiedOtp('');
+                }}
+                onBack={() => setCurrentScreen('otp')}
             />
         );
     }

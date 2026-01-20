@@ -11,6 +11,7 @@ import {
     TouchableOpacity,
     View
 } from 'react-native';
+import { MusicService } from '../services/musicService';
 
 interface ForgotPasswordScreenProps {
     onBackToLogin: () => void;
@@ -22,7 +23,7 @@ export default function ForgotPasswordScreen({ onBackToLogin, onEmailSubmitted }
     const [isLoading, setIsLoading] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false); // Đã thêm biến này
 
-    const handleResetPassword = () => {
+    const handleResetPassword = async () => {
         if (!email) {
             Alert.alert('Lỗi', 'Vui lòng nhập email của bạn!');
             return;
@@ -37,16 +38,34 @@ export default function ForgotPasswordScreen({ onBackToLogin, onEmailSubmitted }
 
         setIsLoading(true);
 
-        // Simulate API call
-        setTimeout(() => {
-            setIsLoading(false);
-            setIsSuccess(true); // Cập nhật trạng thái thành công
+        try {
+            // Gọi API gửi OTP
+            await MusicService.auth.sendOtp(email);
 
-            // Chuyển sang màn hình OTP sau 500ms để người dùng kịp thấy thông báo thành công (nếu cần)
-            setTimeout(() => {
-                onEmailSubmitted(email);
-            }, 500);
-        }, 1500);
+            setIsLoading(false);
+            setIsSuccess(true);
+
+            Alert.alert(
+                'Thành công',
+                'Mã OTP đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư!',
+                [
+                    {
+                        text: 'OK',
+                        onPress: () => {
+                            setTimeout(() => {
+                                onEmailSubmitted(email);
+                            }, 300);
+                        }
+                    }
+                ]
+            );
+        } catch (error: any) {
+            setIsLoading(false);
+            setIsSuccess(false);
+
+            const errorMessage = error?.response?.data?.message || 'Có lỗi xảy ra. Vui lòng thử lại!';
+            Alert.alert('Lỗi', errorMessage);
+        }
     };
 
     return (

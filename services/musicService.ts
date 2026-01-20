@@ -2,6 +2,14 @@ import apiClient from './apiClient';
 import { Album, Artist, Category, Profile } from './types';
 
 export const MusicService = {
+    // --- 🔐 AUTH APIs ---
+    auth: {
+        sendOtp: (email: string) => apiClient.post('/auth/send-otp', null, { params: { email } }),
+        forgotPassword: (email: string) => apiClient.post('/auth/forgot-password', null, { params: { email } }),
+        resetPassword: (email: string, otpCode: string, newPassword: string) =>
+            apiClient.post('/auth/reset-password', { email, otpCode, newPassword }),
+    },
+
     // --- 🌍 PUBLIC APIs ---
     public: {
         // Categories
@@ -20,7 +28,11 @@ export const MusicService = {
         // Albums
         getAlbums: () => apiClient.get<Album[]>('/public/albums'),
         getAlbumDetail: (id: number) => apiClient.get<Album>(`/public/albums/${id}`),
+        getAlbumSongs: (id: number) => apiClient.get(`/public/albums/${id}/songs`),
         searchAlbums: (query: string) => apiClient.get('/public/albums/search', { params: { query } }),
+
+        // Songs
+        getSongStream: (id: number) => `/public/songs/${id}/stream`, // Trả về URL stream
     },
 
     // --- 👤 CUSTOMER PROFILE APIs ---
@@ -32,6 +44,15 @@ export const MusicService = {
 
         getWalletBalance: () => apiClient.get('/customer/profile/wallet/balance'),
         getMyAlbums: () => apiClient.get<Album[]>('/customer/profile/my-albums'),
+        purchaseAlbum: (id: number | string) => apiClient.post(`/customer/profile/purchase-album/${id}`),
+
+        // Music streaming APIs
+        checkSongAccess: (songId: number | string) => apiClient.get(`/customer/music/check-access/${songId}`),
+        getSongStream: (songId: number | string) => `http://172.20.10.3:8080/api/customer/music/stream/${songId}`,
+        getMySongs: () => apiClient.get('/customer/music/my-songs'),
+
+        // Transaction APIs
+        getTransactions: () => apiClient.get('/customer/profile/transactions'),
 
         checkUsername: (username: string) => apiClient.get(`/customer/profile/check/username/${username}`),
         checkEmail: (email: string) => apiClient.get(`/customer/profile/check/email/${email}`),

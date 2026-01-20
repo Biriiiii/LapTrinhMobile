@@ -5,6 +5,7 @@ const apiClient = axios.create({
     // Đảm bảo IP và Port khớp với máy tính của bạn
     baseURL: 'http://172.20.10.3:8080/api',
     headers: { 'Content-Type': 'application/json' },
+    timeout: 30000, // Tăng timeout lên 30 giây
 });
 
 apiClient.interceptors.request.use(async (config) => {
@@ -14,5 +15,18 @@ apiClient.interceptors.request.use(async (config) => {
     }
     return config;
 });
+
+// Response interceptor để handle lỗi
+apiClient.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.code === 'ECONNABORTED') {
+            console.error('Request timeout - Kiểm tra kết nối mạng');
+        } else if (error.message === 'Network Error') {
+            console.error('Network Error - Kiểm tra IP address và firewall');
+        }
+        return Promise.reject(error);
+    }
+);
 
 export default apiClient;

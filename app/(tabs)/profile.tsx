@@ -107,6 +107,8 @@ export default function ProfileScreen() {
 
                 {/* MENU DANH MỤC */}
                 <View style={styles.menuSection}>
+                    <Text style={styles.sectionTitle}>Quản lý tài khoản</Text>
+
                     <TouchableOpacity
                         style={styles.menuItem}
                         onPress={() => router.push('/my-albums' as any)}
@@ -115,6 +117,20 @@ export default function ProfileScreen() {
                             <MaterialCommunityIcons name="album" size={24} color="#1DB954" />
                         </View>
                         <Text style={styles.menuText}>Album đã sở hữu</Text>
+                        <Feather name="chevron-right" size={20} color="#666" />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={styles.menuItem}
+                        onPress={() => {
+                            console.log('Navigating to transaction history...');
+                            router.push('/transaction-history' as any);
+                        }}
+                    >
+                        <View style={[styles.iconBox, { backgroundColor: '#4ECDC422' }]}>
+                            <MaterialCommunityIcons name="receipt" size={24} color="#4ECDC4" />
+                        </View>
+                        <Text style={styles.menuText}>Lịch sử giao dịch</Text>
                         <Feather name="chevron-right" size={20} color="#666" />
                     </TouchableOpacity>
                 </View>
@@ -145,6 +161,7 @@ const styles = StyleSheet.create({
     editBtn: { marginTop: 25, paddingHorizontal: 25, paddingVertical: 10, borderRadius: 25, borderWidth: 1, borderColor: '#555' },
     editBtnText: { color: '#fff', fontSize: 14, fontWeight: 'bold' },
     menuSection: { paddingHorizontal: 20, marginTop: 30 },
+    sectionTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 16 },
     menuItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1a1a1a', padding: 16, borderRadius: 12, marginBottom: 12 },
     iconBox: { width: 45, height: 45, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginRight: 15 },
     menuText: { color: '#fff', flex: 1, fontSize: 16, fontWeight: '600' }

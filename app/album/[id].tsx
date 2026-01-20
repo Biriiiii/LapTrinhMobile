@@ -3,6 +3,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import apiClient from '../../services/apiClient';
+import { MusicService } from '../../services/musicService';
 
 export default function AlbumDetail() {
     const { id } = useLocalSearchParams();
@@ -16,7 +17,7 @@ export default function AlbumDetail() {
 
     useEffect(() => {
         fetchAlbumDetail();
-    }, [id]);
+    }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchAlbumDetail = async () => {
         try {
@@ -53,11 +54,13 @@ export default function AlbumDetail() {
                 text: "Mua ngay",
                 onPress: async () => {
                     try {
-                        await apiClient.post(`/customer/purchase/album/${id}`);
+                        await MusicService.customer.purchaseAlbum(id as string);
                         Alert.alert("Thành công", "Chúc mừng bạn đã sở hữu album này!");
                         fetchAlbumDetail(); // Load lại dữ liệu để cập nhật trạng thái đã sở hữu
-                    } catch (e) {
-                        Alert.alert("Lỗi", "Giao dịch thất bại. Vui lòng kiểm tra số dư ví.");
+                    } catch (error: any) {
+                        console.error('Lỗi mua album:', error);
+                        const errorMessage = error?.response?.data?.message || "Giao dịch thất bại. Vui lòng kiểm tra số dư ví.";
+                        Alert.alert("Lỗi", errorMessage);
                     }
                 }
             }
@@ -65,21 +68,48 @@ export default function AlbumDetail() {
     };
 
     // HÀM XỬ LÝ PHÁT NHẠC
-    const handlePlaySong = (index: number) => {
+    const handlePlaySong = async (index: number) => {
         if (!isOwned) {
             Alert.alert("Yêu cầu mua", "Bạn cần mua album này để nghe toàn bộ các bài hát.");
             return;
         }
 
-        // Chuyển hướng sang màn hình Player và truyền thông tin cần thiết
-        router.push({
-            pathname: '/player',
-            params: {
-                songId: songs[index].id,
-                albumId: id,
-                index: index // Gửi index để Player biết bài nào đang phát trong list
+        const currentSong = songs[index];
+
+        try {
+            // 1. Gọi API để lấy stream info (trả về JSON với streamUrl)
+            const streamResponse = await apiClient.get(`/customer/music/stream/${currentSong.id}`);
+
+            // 2. Lấy streamUrl từ response JSON
+            const { streamUrl, canStream, message } = streamResponse.data;
+
+            if (!canStream) {
+                Alert.alert("Lỗi", message || "Bạn không có quyền nghe bài hát này.");
+                return;
             }
-        });
+
+            console.log('Song data:', currentSong);
+            console.log('Stream info:', streamResponse.data);
+            console.log('Actual stream URL:', streamUrl);
+
+            // 3. Chuyển hướng sang màn hình Player với streamUrl từ S3
+            router.push({
+                pathname: '/player',
+                params: {
+                    songId: currentSong.id.toString(),
+                    title: currentSong.title || 'Unknown Song',
+                    artist: currentSong.artistName || album?.artistName || "Unknown Artist",
+                    coverUrl: album?.coverUrl || 'https://via.placeholder.com/350',
+                    streamUrl: streamUrl, // URL từ S3 AWS
+                    albumId: id?.toString(),
+                    index: index.toString()
+                }
+            });
+        } catch (error: any) {
+            console.error('Lỗi phát nhạc:', error);
+            const errorMessage = error?.response?.data?.message || "Không thể phát nhạc. Vui lòng thử lại.";
+            Alert.alert("Lỗi", errorMessage);
+        }
     };
 
     if (loading) return <View style={styles.centered}><ActivityIndicator color="#1DB954" size="large" /></View>;
