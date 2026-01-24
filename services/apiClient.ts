@@ -1,30 +1,36 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 const apiClient = axios.create({
-    // Đảm bảo IP và Port khớp với máy tính của bạn
-    baseURL: 'http://192.168.100.190:8080/api',
+    // 🔥 Sử dụng đúng Port 85 và IP máy tính của bạn
+    baseURL: 'http://192.168.100.190:85/api',
     headers: { 'Content-Type': 'application/json' },
-    timeout: 30000, // Tăng timeout lên 30 giây
+    timeout: 30000,
 });
 
+// Hàm lấy Token thông minh tùy theo nền tảng
+const getAuthToken = async () => {
+    if (Platform.OS === 'web') {
+        // Trên Web dùng localStorage để tránh lỗi SecureStore
+        return localStorage.getItem('userToken');
+    }
+    // Trên Android/iOS dùng SecureStore
+    return await SecureStore.getItemAsync('userToken');
+};
+
 apiClient.interceptors.request.use(async (config) => {
-    const token = await SecureStore.getItemAsync('userToken');
+    const token = await getAuthToken();
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
 });
 
-// Response interceptor để handle lỗi
 apiClient.interceptors.response.use(
     (response) => response,
     (error) => {
-        if (error.code === 'ECONNABORTED') {
-            console.error('Request timeout - Kiểm tra kết nối mạng');
-        } else if (error.message === 'Network Error') {
-            console.error('Network Error - Kiểm tra IP address và firewall');
-        }
+        console.error(`❌ Lỗi API [${error.response?.status}]:`, error.config?.url);
         return Promise.reject(error);
     }
 );

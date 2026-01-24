@@ -8,7 +8,7 @@ export interface Category {
 export interface Artist {
     id: number;
     name: string;
-    image?: string;
+    imageUrl: string;
     albumCount?: number;
     songCount?: number;
 }
