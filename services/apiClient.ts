@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 
 const apiClient = axios.create({
     // Đảm bảo IP và Port khớp với máy tính của bạn
-    baseURL: 'http://172.20.10.3:8080/api',
+    baseURL: 'http://192.168.100.190:8080/api',
     headers: { 'Content-Type': 'application/json' },
     timeout: 30000, // Tăng timeout lên 30 giây
 });

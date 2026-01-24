@@ -1,6 +1,6 @@
 import { Feather, MaterialIcons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router'; // Thêm useFocusEffect
+import React, { useCallback, useState } from 'react'; // Thêm useCallback
 import {
     ActivityIndicator,
     FlatList,
@@ -30,8 +30,12 @@ export default function TransactionHistoryScreen() {
     const [loading, setLoading] = useState(true);
     const [refreshing, setRefreshing] = useState(false);
 
+    // --- HÀM LẤY DỮ LIỆU RIÊNG BIỆT ---
     const fetchTransactions = async () => {
         try {
+            // Chỉ hiện loading xoay lớn nếu danh sách đang trống
+            if (transactions.length === 0) setLoading(true);
+
             const response = await MusicService.customer.getTransactions();
             setTransactions(response.data);
         } catch (error) {
@@ -42,9 +46,13 @@ export default function TransactionHistoryScreen() {
         }
     };
 
-    useEffect(() => {
-        fetchTransactions();
-    }, []);
+    // --- 🔥 CẬP NHẬT TỨC THÌ: useFocusEffect ---
+    // Giúp tự động tải lại lịch sử mỗi khi Biriii quay lại màn hình này
+    useFocusEffect(
+        useCallback(() => {
+            fetchTransactions();
+        }, [])
+    );
 
     const onRefresh = () => {
         setRefreshing(true);
@@ -87,26 +95,19 @@ export default function TransactionHistoryScreen() {
 
     const getTypeTitle = (type: string) => {
         switch (type) {
-            case 'PURCHASE':
-                return 'Mua Album';
-            case 'WALLET_DEPOSIT':
-                return 'Nạp Tiền';
-            case 'WALLET_WITHDRAW':
-                return 'Rút Tiền';
-            default:
-                return 'Giao Dịch';
+            case 'PURCHASE': return 'Mua Album';
+            case 'WALLET_DEPOSIT': return 'Nạp Tiền';
+            case 'WALLET_WITHDRAW': return 'Rút Tiền';
+            default: return 'Giao Dịch';
         }
     };
 
     const getAmountColor = (type: string) => {
         switch (type) {
             case 'PURCHASE':
-            case 'WALLET_WITHDRAW':
-                return '#FF6B6B';
-            case 'WALLET_DEPOSIT':
-                return '#4ECDC4';
-            default:
-                return '#fff';
+            case 'WALLET_WITHDRAW': return '#FF6B6B';
+            case 'WALLET_DEPOSIT': return '#4ECDC4';
+            default: return '#fff';
         }
     };
 
@@ -135,7 +136,7 @@ export default function TransactionHistoryScreen() {
         </View>
     );
 
-    if (loading) {
+    if (loading && transactions.length === 0) {
         return (
             <SafeAreaView style={styles.container}>
                 <View style={styles.loadingContainer}>
@@ -148,7 +149,6 @@ export default function TransactionHistoryScreen() {
 
     return (
         <SafeAreaView style={styles.container}>
-            {/* Header */}
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <Feather name="arrow-left" size={24} color="#fff" />
@@ -157,7 +157,6 @@ export default function TransactionHistoryScreen() {
                 <View style={styles.placeholder} />
             </View>
 
-            {/* Transaction List */}
             <FlatList
                 data={transactions}
                 renderItem={renderTransaction}
@@ -186,116 +185,26 @@ export default function TransactionHistoryScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#121212',
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingVertical: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#333',
-    },
-    backButton: {
-        padding: 5,
-    },
-    headerTitle: {
-        color: '#fff',
-        fontSize: 20,
-        fontWeight: 'bold',
-    },
-    placeholder: {
-        width: 34,
-    },
-    loadingContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    loadingText: {
-        color: '#fff',
-        marginTop: 16,
-        fontSize: 16,
-    },
-    transactionList: {
-        flex: 1,
-        paddingHorizontal: 20,
-    },
-    transactionItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingVertical: 16,
-        paddingHorizontal: 16,
-        backgroundColor: '#1e1e1e',
-        borderRadius: 12,
-        marginVertical: 4,
-    },
-    transactionLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    transactionInfo: {
-        marginLeft: 12,
-        flex: 1,
-    },
-    transactionTitle: {
-        color: '#fff',
-        fontSize: 16,
-        fontWeight: '600',
-        marginBottom: 4,
-    },
-    transactionDesc: {
-        color: '#b3b3b3',
-        fontSize: 14,
-        marginBottom: 4,
-    },
-    transactionDate: {
-        color: '#888',
-        fontSize: 12,
-    },
-    transactionRight: {
-        alignItems: 'flex-end',
-    },
-    transactionAmount: {
-        fontSize: 16,
-        fontWeight: 'bold',
-        marginBottom: 4,
-    },
-    statusBadge: {
-        paddingHorizontal: 8,
-        paddingVertical: 2,
-        borderRadius: 10,
-    },
-    statusText: {
-        color: '#000',
-        fontSize: 10,
-        fontWeight: '500',
-    },
-    separator: {
-        height: 1,
-        backgroundColor: '#333',
-        marginVertical: 4,
-    },
-    emptyContainer: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingTop: 100,
-    },
-    emptyText: {
-        color: '#fff',
-        fontSize: 18,
-        fontWeight: '600',
-        marginTop: 16,
-    },
-    emptySubText: {
-        color: '#888',
-        fontSize: 14,
-        marginTop: 8,
-        textAlign: 'center',
-    },
+    container: { flex: 1, backgroundColor: '#121212' },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingVertical: 15, borderBottomWidth: 1, borderBottomColor: '#333' },
+    backButton: { padding: 5 },
+    headerTitle: { color: '#fff', fontSize: 20, fontWeight: 'bold' },
+    placeholder: { width: 34 },
+    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
+    loadingText: { color: '#fff', marginTop: 16, fontSize: 16 },
+    transactionList: { flex: 1, paddingHorizontal: 20 },
+    transactionItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 16, paddingHorizontal: 16, backgroundColor: '#1e1e1e', borderRadius: 12, marginVertical: 4 },
+    transactionLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+    transactionInfo: { marginLeft: 12, flex: 1 },
+    transactionTitle: { color: '#fff', fontSize: 16, fontWeight: '600', marginBottom: 4 },
+    transactionDesc: { color: '#b3b3b3', fontSize: 14, marginBottom: 4 },
+    transactionDate: { color: '#888', fontSize: 12 },
+    transactionRight: { alignItems: 'flex-end' },
+    transactionAmount: { fontSize: 16, fontWeight: 'bold', marginBottom: 4 },
+    statusBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 10 },
+    statusText: { color: '#000', fontSize: 10, fontWeight: '500' },
+    separator: { height: 1, backgroundColor: '#333', marginVertical: 4 },
+    emptyContainer: { alignItems: 'center', justifyContent: 'center', paddingTop: 100 },
+    emptyText: { color: '#fff', fontSize: 18, fontWeight: '600', marginTop: 16 },
+    emptySubText: { color: '#888', fontSize: 14, marginTop: 8, textAlign: 'center' },
 });

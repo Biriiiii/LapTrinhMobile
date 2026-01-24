@@ -1,127 +1,135 @@
 import { Audio, AVPlaybackStatus } from 'expo-av';
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import apiClient from '../services/apiClient';
 
-// --- 1. ĐỊNH NGHĨA KIỂU DỮ LIỆU ---
+type RepeatMode = 'off' | 'all' | 'one';
+
 interface Track {
     id: number;
     title: string;
     artist: string;
     coverUrl: string;
-    streamUrl: string;
+    streamUrl?: string;
 }
 
 interface PlayerContextType {
     currentTrack: Track | null;
+    queue: Track[];
+    currentIndex: number;
     isPlaying: boolean;
-    status: any; // Thông tin vị trí & thời lượng nhạc
-    playTrack: (track: Track) => void;
-    pauseTrack: () => void;
-    resumeTrack: () => void;
-    seek: (millis: number) => void;
+    isBuffering: boolean;
+    status: any;
+    repeatMode: RepeatMode;
+    playTrack: (track: Track) => Promise<void>;
+    playPlaylist: (tracks: Track[], startIndex: number) => Promise<void>;
+    pauseTrack: () => Promise<void>;
+    resumeTrack: () => Promise<void>;
+    seek: (millis: number) => Promise<void>;
+    nextTrack: () => Promise<void>;
+    prevTrack: () => Promise<void>;
+    toggleRepeatMode: () => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | undefined>(undefined);
 
-// --- 2. PROVIDER CHÍNH ---
 export const PlayerProvider = ({ children }: { children: React.ReactNode }) => {
     const [sound, setSound] = useState<Audio.Sound | null>(null);
     const [currentTrack, setCurrentTrack] = useState<Track | null>(null);
+    const [queue, setQueue] = useState<Track[]>([]);
+    const [currentIndex, setCurrentIndex] = useState(-1);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [isBuffering, setIsBuffering] = useState(false);
     const [status, setStatus] = useState<any>(null);
+    const [repeatMode, setRepeatMode] = useState<RepeatMode>('off');
 
-    // Khởi tạo Audio mode
     useEffect(() => {
-        Audio.setAudioModeAsync({
-            allowsRecordingIOS: false,
-            staysActiveInBackground: true,
-            playsInSilentModeIOS: true,
-            shouldDuckAndroid: true,
-            playThroughEarpieceAndroid: false,
-        });
-    }, []);
+        Audio.setAudioModeAsync({ staysActiveInBackground: true, playsInSilentModeIOS: true });
+        return () => { if (sound) sound.unloadAsync(); };
+    }, [sound]);
 
-    // Cập nhật trạng thái nhạc (position, duration)
     const onPlaybackStatusUpdate = (newStatus: AVPlaybackStatus) => {
-        if (newStatus.isLoaded) {
-            setStatus(newStatus);
-            setIsPlaying(newStatus.isPlaying);
-            if (newStatus.didJustFinish) {
-                setIsPlaying(false);
-            }
+        if (!newStatus.isLoaded) return;
+        setStatus(newStatus);
+        setIsPlaying(newStatus.isPlaying);
+        setIsBuffering(newStatus.isBuffering);
+
+        if (newStatus.didJustFinish && !newStatus.isLooping) {
+            if (repeatMode === 'one') playTrack(currentTrack!);
+            else nextTrack();
         }
+    };
+
+    const toggleRepeatMode = () => {
+        setRepeatMode(prev => (prev === 'off' ? 'all' : prev === 'all' ? 'one' : 'off'));
     };
 
     const playTrack = async (track: Track) => {
         try {
-            console.log('Attempting to play track:', track);
-
-            if (!track.streamUrl) {
-                console.error('StreamURL is missing!');
-                return;
+            if (sound) await sound.unloadAsync();
+            let url = track.streamUrl;
+            if (!url) {
+                const res = await apiClient.get(`/customer/music/stream/${track.id}`);
+                url = res.data.streamUrl;
             }
-
-            if (sound) {
-                await sound.unloadAsync();
-            }
-
-            console.log('Creating audio with URL:', track.streamUrl);
-
             const { sound: newSound } = await Audio.Sound.createAsync(
-                { uri: track.streamUrl },
-                { shouldPlay: true },
+                { uri: url! },
+                { shouldPlay: true, isLooping: repeatMode === 'one' },
                 onPlaybackStatusUpdate
             );
             setSound(newSound);
             setCurrentTrack(track);
-            setIsPlaying(true);
+        } catch (e) { console.error("Lỗi phát:", e); }
+    };
 
-            console.log('Audio loaded successfully');
-        } catch (error) {
-            console.error("Lỗi phát nhạc:", error);
-            console.error("URL gây lỗi:", track.streamUrl);
+    const playPlaylist = async (tracks: Track[], startIndex: number) => {
+        setQueue(tracks);
+        setCurrentIndex(startIndex);
+        await playTrack(tracks[startIndex]);
+    };
+
+    const nextTrack = async () => {
+        let nextIdx = currentIndex + 1;
+        if (nextIdx >= queue.length) {
+            if (repeatMode === 'all') nextIdx = 0;
+            else return;
+        }
+        setCurrentIndex(nextIdx);
+        await playTrack(queue[nextIdx]);
+    };
+
+    const prevTrack = async () => {
+        if (currentIndex > 0) {
+            const prevIdx = currentIndex - 1;
+            setCurrentIndex(prevIdx);
+            await playTrack(queue[prevIdx]);
         }
     };
 
+    // 🔥 SỬA LỖI Ở ĐÂY: Thêm dấu { } và await để ép kiểu trả về là Promise<void>
     const pauseTrack = async () => {
-        if (sound) {
-            await sound.pauseAsync();
-            setIsPlaying(false);
-        }
+        if (sound) await sound.pauseAsync();
     };
 
     const resumeTrack = async () => {
-        if (sound) {
-            await sound.playAsync();
-            setIsPlaying(true);
-        }
+        if (sound) await sound.playAsync();
     };
 
-    const seek = async (millis: number) => {
-        if (sound) {
-            await sound.setPositionAsync(millis);
-        }
+    const seek = async (ms: number) => {
+        if (sound) await sound.setPositionAsync(ms);
     };
 
-    // ĐOẠN NÀY ĐÃ SỬA LỖI: Liệt kê rõ ràng tất cả các giá trị
     return (
-        <PlayerContext.Provider
-            value={{
-                currentTrack,
-                isPlaying,
-                status,
-                playTrack,
-                pauseTrack,
-                resumeTrack,
-                seek
-            }}
-        >
+        <PlayerContext.Provider value={{
+            currentTrack, queue, currentIndex, isPlaying, isBuffering, status, repeatMode,
+            playTrack, playPlaylist, pauseTrack, resumeTrack, seek, nextTrack, prevTrack, toggleRepeatMode
+        }}>
             {children}
         </PlayerContext.Provider>
     );
 };
 
 export const usePlayer = () => {
-    const context = useContext(PlayerContext);
-    if (!context) throw new Error("usePlayer must be used within PlayerProvider");
-    return context;
+    const c = useContext(PlayerContext);
+    if (!c) throw new Error("usePlayer must be used within PlayerProvider");
+    return c;
 };

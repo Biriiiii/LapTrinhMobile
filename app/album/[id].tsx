@@ -1,253 +1,169 @@
-import { Feather, MaterialIcons } from '@expo/vector-icons';
-import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Image, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Feather, FontAwesome5, Ionicons, MaterialIcons } from '@expo/vector-icons';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import {
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Image,
+    SafeAreaView,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View
+} from 'react-native';
+import { usePlayer } from '../../context/PlayerContext';
 import apiClient from '../../services/apiClient';
-import { MusicService } from '../../services/musicService';
 
-export default function AlbumDetail() {
+export default function AlbumDetailScreen() {
     const { id } = useLocalSearchParams();
     const router = useRouter();
-    const [album, setAlbum] = useState<any>(null);
-    const [songs, setSongs] = useState<any[]>([]);
-    const [loading, setLoading] = useState(true);
+    const { playPlaylist, currentTrack, isPlaying } = usePlayer();
 
-    // Kiểm tra đã sở hữu album hay chưa
+    const [album, setAlbum] = useState<any>(null);
+    const [loading, setLoading] = useState(true);
+    const [isFavorite, setIsFavorite] = useState(false);
     const [isOwned, setIsOwned] = useState(false);
 
-    useEffect(() => {
-        fetchAlbumDetail();
-    }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
-
+    // --- 1. LẤY DỮ LIỆU TỔNG HỢP ---
     const fetchAlbumDetail = async () => {
         try {
-            setLoading(true);
-
-            // 1. Gọi đồng thời: Chi tiết Album, Danh sách bài hát, và Danh sách album đã mua của user
-            const [albumRes, songsRes, myAlbumsRes] = await Promise.all([
+            if (!album) setLoading(true);
+            const [resAlb, resFavs, resOwned] = await Promise.all([
                 apiClient.get(`/public/albums/${id}`),
-                apiClient.get(`/public/albums/${id}/songs`).catch(() => ({ data: [] })),
-                apiClient.get(`/customer/profile/my-albums`).catch(() => ({ data: [] }))
+                apiClient.get('/customer/favorites/my-albums').catch(() => ({ data: [] })),
+                apiClient.get('/customer/profile/my-albums').catch(() => ({ data: [] }))
             ]);
 
-            setAlbum(albumRes.data);
-            setSongs(songsRes.data);
-
-            // 2. KIỂM TRA SỞ HỮU: 
-            const ownedList = myAlbumsRes.data;
-            const checkOwned = ownedList.some((item: any) => item.id.toString() === id.toString());
-            setIsOwned(checkOwned);
-
+            setAlbum(resAlb.data);
+            setIsFavorite(resFavs.data.some((item: any) => item.id === Number(id)));
+            setIsOwned(resOwned.data.some((item: any) => item.id === Number(id)));
         } catch (error) {
-            console.error("Lỗi tải chi tiết album:", error);
-            Alert.alert("Lỗi", "Không thể tải thông tin album.");
+            console.error("Lỗi tải album:", error);
         } finally {
             setLoading(false);
         }
     };
 
-    // Hàm xử lý mua album
-    const handleBuy = () => {
-        Alert.alert("Xác nhận mua", `Bạn có muốn mua Album ${album?.title} với giá ${album?.price?.toLocaleString()}đ?`, [
-            { text: "Hủy", style: "cancel" },
-            {
-                text: "Mua ngay",
-                onPress: async () => {
-                    try {
-                        await MusicService.customer.purchaseAlbum(id as string);
-                        Alert.alert("Thành công", "Chúc mừng bạn đã sở hữu album này!");
-                        fetchAlbumDetail(); // Load lại dữ liệu để cập nhật trạng thái đã sở hữu
-                    } catch (error: any) {
-                        console.error('Lỗi mua album:', error);
-                        const errorMessage = error?.response?.data?.message || "Giao dịch thất bại. Vui lòng kiểm tra số dư ví.";
-                        Alert.alert("Lỗi", errorMessage);
+    useFocusEffect(useCallback(() => { if (id) fetchAlbumDetail(); }, [id]));
+
+    // --- 2. HÀM GỌI ENDPOINT MUA ALBUM (JAVA) ---
+    const handlePurchase = async () => {
+        Alert.alert(
+            "Xác nhận mua",
+            `Bạn muốn dùng số dư ví để mua "${album?.title}" với giá ${album?.price?.toLocaleString('vi-VN')}đ?`,
+            [
+                { text: "Để sau", style: "cancel" },
+                {
+                    text: "MUA NGAY",
+                    onPress: async () => {
+                        try {
+                            // 🔥 Gọi đúng endpoint PostMapping bạn đã viết
+                            const response = await apiClient.post(`/customer/profile/purchase-album/${id}`);
+
+                            // Hiển thị thông báo chúc mừng từ Backend
+                            Alert.alert("Thành công", response.data);
+
+                            // Tải lại dữ liệu để isOwned thành true -> Mở khóa nhạc ngay
+                            fetchAlbumDetail();
+                        } catch (e: any) {
+                            const errorMsg = e.response?.data?.message || "Giao dịch thất bại. Vui lòng kiểm tra lại số dư!";
+                            Alert.alert("Lỗi", errorMsg);
+                        }
                     }
                 }
-            }
-        ]);
+            ]
+        );
     };
 
-    // HÀM XỬ LÝ PHÁT NHẠC
-    const handlePlaySong = async (index: number) => {
+    const handlePlayAlbumSong = (index: number) => {
         if (!isOwned) {
-            Alert.alert("Yêu cầu mua", "Bạn cần mua album này để nghe toàn bộ các bài hát.");
+            handlePurchase();
             return;
         }
-
-        const currentSong = songs[index];
-
-        try {
-            // 1. Gọi API để lấy stream info (trả về JSON với streamUrl)
-            const streamResponse = await apiClient.get(`/customer/music/stream/${currentSong.id}`);
-
-            // 2. Lấy streamUrl từ response JSON
-            const { streamUrl, canStream, message } = streamResponse.data;
-
-            if (!canStream) {
-                Alert.alert("Lỗi", message || "Bạn không có quyền nghe bài hát này.");
-                return;
-            }
-
-            console.log('Song data:', currentSong);
-            console.log('Stream info:', streamResponse.data);
-            console.log('Actual stream URL:', streamUrl);
-
-            // 3. Chuyển hướng sang màn hình Player với streamUrl từ S3
-            router.push({
-                pathname: '/player',
-                params: {
-                    songId: currentSong.id.toString(),
-                    title: currentSong.title || 'Unknown Song',
-                    artist: currentSong.artistName || album?.artistName || "Unknown Artist",
-                    coverUrl: album?.coverUrl || 'https://via.placeholder.com/350',
-                    streamUrl: streamUrl, // URL từ S3 AWS
-                    albumId: id?.toString(),
-                    index: index.toString()
-                }
-            });
-        } catch (error: any) {
-            console.error('Lỗi phát nhạc:', error);
-            const errorMessage = error?.response?.data?.message || "Không thể phát nhạc. Vui lòng thử lại.";
-            Alert.alert("Lỗi", errorMessage);
-        }
+        const albumTracks = album.songs.map((s: any) => ({
+            id: s.id,
+            title: s.title,
+            artist: s.artistName || album.artistName,
+            coverUrl: s.coverUrl || album.coverUrl,
+        }));
+        playPlaylist(albumTracks, index);
+        router.push('/player');
     };
 
-    if (loading) return <View style={styles.centered}><ActivityIndicator color="#1DB954" size="large" /></View>;
+    if (loading && !album) return (
+        <View style={styles.centered}><ActivityIndicator color="#1DB954" size="large" /></View>
+    );
 
     return (
-        <ScrollView style={styles.container}>
-            {/* Nút Quay lại */}
-            <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                <Feather name="arrow-left" size={24} color="#fff" />
-            </TouchableOpacity>
-
-            {/* Header Album */}
+        <SafeAreaView style={styles.container}>
+            {/* Header */}
             <View style={styles.header}>
-                <Image
-                    source={{ uri: album?.coverUrl || 'https://via.placeholder.com/300' }}
-                    style={styles.coverImage}
-                />
-                <Text style={styles.title}>{album?.title}</Text>
-                <Text style={styles.artistName}>Album • {album?.artistName || "Nghệ sĩ"}</Text>
-
-                <View style={styles.actionRow}>
-                    {isOwned ? (
-                        // NẾU ĐÃ SỞ HỮU: Nút Phát nhạc tổng
-                        <TouchableOpacity
-                            style={[styles.buyButton, { backgroundColor: '#1DB954' }]}
-                            onPress={() => handlePlaySong(0)}
-                        >
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <Feather name="play" size={18} color="#000" />
-                                <Text style={[styles.buyText, { marginLeft: 8 }]}>PHÁT NHẠC</Text>
-                            </View>
-                        </TouchableOpacity>
-                    ) : (
-                        // NẾU CHƯA SỞ HỮU: Hiện nút Mua
-                        <TouchableOpacity style={styles.buyButton} onPress={handleBuy}>
-                            <Text style={styles.buyText}>MUA {album?.price?.toLocaleString()}đ</Text>
-                        </TouchableOpacity>
-                    )}
-
-                    <TouchableOpacity style={styles.iconCircle}>
-                        <Feather name="heart" size={20} color="#fff" />
-                    </TouchableOpacity>
-                </View>
+                <TouchableOpacity onPress={() => router.back()} style={styles.headerBtn}><Feather name="arrow-left" size={24} color="#fff" /></TouchableOpacity>
+                <Text style={styles.headerSmallTitle} numberOfLines={1}>{album?.title}</Text>
+                <TouchableOpacity onPress={() => { }} style={styles.headerBtn}><Ionicons name={isFavorite ? "heart" : "heart-outline"} size={24} color={isFavorite ? "#1DB954" : "#fff"} /></TouchableOpacity>
             </View>
 
-            {/* Danh sách bài hát */}
-            <View style={styles.songList}>
-                <View style={styles.sectionHeader}>
-                    <Text style={styles.sectionTitle}>Danh sách bài hát</Text>
-                    {isOwned && <MaterialIcons name="verified" size={20} color="#1DB954" />}
-                </View>
-
-                {songs.map((song: any, index: number) => (
-                    <TouchableOpacity
-                        key={index}
-                        style={styles.songItem}
-                        onPress={() => handlePlaySong(index)}
-                        activeOpacity={0.7}
-                    >
-                        <Text style={styles.songNumber}>{index + 1}</Text>
-
-                        <View style={{ flex: 1 }}>
-                            <Text style={[styles.songTitle, !isOwned && { color: '#888' }]}>
-                                {song.title}
-                            </Text>
-                            <Text style={styles.songSub}>{song.artistName || album?.artistName}</Text>
+            <FlatList
+                data={album?.songs || []}
+                keyExtractor={(item: any) => item.id.toString()}
+                contentContainerStyle={{ paddingBottom: 120 }}
+                ListHeaderComponent={() => (
+                    <View style={styles.heroCentered}>
+                        <View>
+                            <Image source={{ uri: album?.coverUrl }} style={[styles.heroArt, !isOwned && { opacity: 0.6 }]} />
+                            {!isOwned && <View style={styles.lockOverlayHero}><Feather name="lock" size={40} color="#fff" /></View>}
                         </View>
 
-                        {/* Icon trạng thái bài hát */}
-                        <Feather
-                            name={isOwned ? "play-circle" : "lock"}
-                            size={22}
-                            color={isOwned ? "#1DB954" : "#555"}
-                        />
-                    </TouchableOpacity>
-                ))}
-            </View>
+                        <Text style={styles.mainTitle}>{album?.title}</Text>
+                        <View style={styles.greenBar} />
+                        <Text style={styles.subTitle}>{album?.artistName} • {album?.releaseYear}</Text>
 
-            {/* Khoảng trống cuối để không bị Player bar che (nếu có) */}
-            <View style={{ height: 100 }} />
-        </ScrollView>
+                        {/* NÚT PHÁT HOẶC MUA */}
+                        {isOwned ? (
+                            <TouchableOpacity style={styles.bigPlayBtn} onPress={() => handlePlayAlbumSong(0)}>
+                                <MaterialIcons name="play-arrow" size={30} color="#000" />
+                                <Text style={styles.playText}>PHÁT TẤT CẢ</Text>
+                            </TouchableOpacity>
+                        ) : (
+                            <TouchableOpacity style={[styles.bigPlayBtn, { backgroundColor: '#FFB142' }]} onPress={handlePurchase}>
+                                <FontAwesome5 name="shopping-cart" size={18} color="#000" />
+                                <Text style={styles.playText}>MUA ALBUM - {album?.price?.toLocaleString('vi-VN')}đ</Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+                )}
+                renderItem={({ item, index }) => (
+                    <TouchableOpacity style={styles.songRow} onPress={() => handlePlayAlbumSong(index)}>
+                        <Text style={[styles.songIndex, currentTrack?.id === item.id && { color: '#1DB954' }]}>{index + 1}</Text>
+                        <View style={{ flex: 1, opacity: isOwned ? 1 : 0.5 }}>
+                            <Text style={[styles.songTitle, currentTrack?.id === item.id && { color: '#1DB954' }]} numberOfLines={1}>{item.title}</Text>
+                            <Text style={styles.songArtist}>{item.artistName || album?.artistName}</Text>
+                        </View>
+                        {!isOwned && <Feather name="lock" size={16} color="#444" style={{ marginRight: 10 }} />}
+                    </TouchableOpacity>
+                )}
+            />
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
     container: { flex: 1, backgroundColor: '#121212' },
     centered: { flex: 1, backgroundColor: '#121212', justifyContent: 'center', alignItems: 'center' },
-    backButton: {
-        marginTop: 50,
-        marginLeft: 20,
-        zIndex: 10,
-        width: 40,
-        height: 40,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        borderRadius: 20,
-        justifyContent: 'center',
-        alignItems: 'center'
-    },
-    header: { alignItems: 'center', padding: 20 },
-    coverImage: {
-        width: 220,
-        height: 220,
-        borderRadius: 8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.5,
-        shadowRadius: 15
-    },
-    title: { color: '#fff', fontSize: 24, fontWeight: 'bold', marginTop: 25, textAlign: 'center' },
-    artistName: { color: '#b3b3b3', fontSize: 14, marginTop: 5 },
-    actionRow: { flexDirection: 'row', alignItems: 'center', marginTop: 25 },
-    buyButton: {
-        backgroundColor: '#fff',
-        paddingHorizontal: 35,
-        paddingVertical: 14,
-        borderRadius: 30,
-        marginRight: 15
-    },
-    buyText: { color: '#000', fontWeight: 'bold', fontSize: 15, letterSpacing: 1 },
-    iconCircle: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        borderWidth: 1,
-        borderColor: '#333',
-        justifyContent: 'center',
-        alignItems: 'center'
-    },
-    songList: { padding: 20 },
-    sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-    sectionTitle: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginRight: 10 },
-    songItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 20,
-        paddingVertical: 5
-    },
-    songNumber: { color: '#b3b3b3', marginRight: 15, width: 25, fontSize: 14 },
+    header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 15, height: 60 },
+    headerBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.05)', justifyContent: 'center', alignItems: 'center' },
+    headerSmallTitle: { color: '#fff', fontSize: 14, fontWeight: 'bold', flex: 1, textAlign: 'center' },
+    heroCentered: { alignItems: 'center', paddingVertical: 30, paddingHorizontal: 20 },
+    heroArt: { width: 200, height: 200, borderRadius: 10 },
+    lockOverlayHero: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.3)', borderRadius: 10 },
+    mainTitle: { color: '#fff', fontSize: 28, fontWeight: 'bold', marginTop: 25, textAlign: 'center' },
+    greenBar: { width: 40, height: 4, backgroundColor: '#1DB954', borderRadius: 2, marginTop: 12 },
+    subTitle: { color: '#b3b3b3', fontSize: 14, fontWeight: '500', marginTop: 12 },
+    bigPlayBtn: { flexDirection: 'row', backgroundColor: '#1DB954', paddingHorizontal: 30, paddingVertical: 14, borderRadius: 30, marginTop: 25, alignItems: 'center', elevation: 5 },
+    playText: { color: '#000', fontWeight: 'bold', fontSize: 15, marginLeft: 8 },
+    songRow: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 14 },
+    songIndex: { color: '#b3b3b3', fontSize: 14, width: 35 },
     songTitle: { color: '#fff', fontSize: 16, fontWeight: '500' },
-    songSub: { color: '#b3b3b3', fontSize: 13, marginTop: 2 }
+    songArtist: { color: '#b3b3b3', fontSize: 13, marginTop: 3 },
 });

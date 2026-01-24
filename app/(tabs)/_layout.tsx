@@ -1,46 +1,33 @@
+import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
 import React from 'react';
 import { View } from 'react-native';
-
-import { HapticTab } from '@/components/haptic-tab';
-import MiniPlayer from '@/components/MiniPlayer';
-import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import MiniPlayer from '../../components/MiniPlayer';
 
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
-
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: '#000' }}>
+      {/* Lớp 1: Hệ thống Tabs (Nằm dưới cùng) */}
       <Tabs
         screenOptions={{
-          tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
+          tabBarActiveTintColor: '#1DB954',
+          tabBarInactiveTintColor: '#b3b3b3',
+          tabBarStyle: {
+            backgroundColor: '#000',
+            borderTopWidth: 0,
+            height: 60, // Cố định chiều cao thanh Tab là 60
+            position: 'absolute', // Làm TabBar trong suốt hoặc đè lên nội dung
+          },
           headerShown: false,
-          tabBarButton: HapticTab,
-        }}>
-        <Tabs.Screen
-          name="index"
-          options={{
-            title: 'Home',
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="house.fill" color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="search"
-          options={{
-            title: 'Search',
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="magnifyingglass" color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="profile"
-          options={{
-            title: 'Profile',
-            tabBarIcon: ({ color }) => <IconSymbol size={28} name="person.fill" color={color} />,
-          }}
-        />
+        }}
+      >
+        <Tabs.Screen name="index" options={{ title: 'Trang chủ', tabBarIcon: ({ color }) => <Ionicons name="home" size={22} color={color} /> }} />
+        <Tabs.Screen name="search" options={{ title: 'Tìm kiếm', tabBarIcon: ({ color }) => <Ionicons name="search" size={22} color={color} /> }} />
+        <Tabs.Screen name="playlist" options={{ title: 'Thư viện', tabBarIcon: ({ color }) => <Ionicons name="library" size={22} color={color} /> }} />
+        <Tabs.Screen name="profile" options={{ title: 'Hồ sơ', tabBarIcon: ({ color }) => <Ionicons name="person" size={22} color={color} /> }} />
       </Tabs>
+
+      {/* Lớp 2: Mini Player (Nằm đè lên trên thanh Tabs) */}
       <MiniPlayer />
     </View>
   );

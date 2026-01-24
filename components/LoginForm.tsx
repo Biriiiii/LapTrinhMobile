@@ -8,7 +8,7 @@ export default function LoginForm({ onForgotPassword }: { onForgotPassword?: () 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn } = useAuth(); // signIn bây giờ yêu cầu 2 tham số
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -18,13 +18,23 @@ export default function LoginForm({ onForgotPassword }: { onForgotPassword?: () 
 
     setIsLoading(true);
     try {
-      // Gọi API đăng nhập (Thay endpoint cho đúng với Backend của bạn)
-      const response = await apiClient.post('/auth/login', { username: email, password });
+      // 1. Gọi API đăng nhập
+      const response = await apiClient.post('/auth/login', {
+        loginIdentifier: email,
+        password
+      });
 
+      // 2. Kiểm tra dữ liệu trả về
+      // Đảm bảo Backend của bạn trả về cả token và thông tin user (id, username, fullName...)
       if (response.data?.token) {
-        await signIn(response.data.token);
+        const token = response.data.token;
+        const userData = response.data.user || response.data; // Tùy cấu trúc JSON của bạn
+
+        // ✅ TRUYỀN ĐỦ 2 THAM SỐ ĐỂ HẾT LỖI
+        await signIn(token, userData);
       }
     } catch (error: any) {
+      console.error("Lỗi đăng nhập:", error);
       Alert.alert('Lỗi', error.response?.data?.message || 'Đăng nhập thất bại');
     } finally {
       setIsLoading(false);
@@ -43,7 +53,7 @@ export default function LoginForm({ onForgotPassword }: { onForgotPassword?: () 
             style={styles.input}
             value={email}
             onChangeText={setEmail}
-            placeholder="Nhập email..."
+            placeholder="Nhập email hoặc username..."
             placeholderTextColor="#666"
             autoCapitalize="none"
           />
@@ -174,4 +184,5 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 1,
   },
+
 });
