@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
 
 const apiClient = axios.create({
     // 🔥 Sử dụng đúng Port 85 và IP máy tính của bạn
-    baseURL: 'http://192.168.100.190:85/api',
+    baseURL: 'http://172.20.10.3:85/api',
     headers: { 'Content-Type': 'application/json' },
     timeout: 30000,
 });
